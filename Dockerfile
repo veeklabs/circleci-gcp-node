@@ -1,4 +1,5 @@
-FROM debian:jessie
+FROM docker:17.12.0-ce as static-docker-source
+FROM debian:stretch
 
 MAINTAINER EasyMetrics <joshuaw@easymetrics.com>
 
@@ -7,36 +8,41 @@ USER root
 # Install and Configure Google Cloud SDK
 # ...
 
-ENV CLOUD_SDK_VERSION 201.0.0
+ENV CLOUD_SDK_VERSION 258.0.0
 
-RUN apt-get -qqy update && apt-get -qqy upgrade && apt-get install -qqy \
-        curl \
-        gcc \
-        python-dev \
-        python-setuptools \
-        apt-transport-https \
-        lsb-release \
-        openssh-client \
-        git \
-    && easy_install -U pip && \
-    pip install -U crcmod   && \
-    export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)" && \
-    echo "deb https://packages.cloud.google.com/apt $CLOUD_SDK_REPO main" > /etc/apt/sources.list.d/google-cloud-sdk.list && \
-    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - && \
-    apt-get update && \
-    apt-get install -y google-cloud-sdk=${CLOUD_SDK_VERSION}-0 \
-        google-cloud-sdk-app-engine-python \
-        google-cloud-sdk-app-engine-java \
-        google-cloud-sdk-app-engine-go \
-        google-cloud-sdk-datalab \
-        google-cloud-sdk-datastore-emulator \
-        google-cloud-sdk-pubsub-emulator \
-        google-cloud-sdk-bigtable-emulator \
-        google-cloud-sdk-cbt \
-        kubectl && \
-    gcloud config set core/disable_usage_reporting true && \
-    gcloud config set component_manager/disable_update_check true && \
-    gcloud config set metrics/environment github_docker_image
+ARG CLOUD_SDK_VERSION=258.0.0
+ENV CLOUD_SDK_VERSION=$CLOUD_SDK_VERSION
+ENV PATH "$PATH:/opt/google-cloud-sdk/bin/"
+COPY --from=static-docker-source /usr/local/bin/docker /usr/local/bin/docker
+RUN apt-get -qqy update && apt-get install -qqy \
+  curl \
+  gcc \
+  python-dev \
+  python-setuptools \
+  apt-transport-https \
+  lsb-release \
+  openssh-client \
+  git \
+  gnupg \
+  && easy_install -U pip && \
+  pip install -U crcmod   && \
+  export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)" && \
+  echo "deb https://packages.cloud.google.com/apt $CLOUD_SDK_REPO main" > /etc/apt/sources.list.d/google-cloud-sdk.list && \
+  curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - && \
+  apt-get update && \
+  apt-get install -y google-cloud-sdk=${CLOUD_SDK_VERSION}-0 \
+  google-cloud-sdk-app-engine-python=${CLOUD_SDK_VERSION}-0 \
+  google-cloud-sdk-app-engine-python-extras=${CLOUD_SDK_VERSION}-0 \
+  google-cloud-sdk-app-engine-java=${CLOUD_SDK_VERSION}-0 \
+  google-cloud-sdk-app-engine-go=${CLOUD_SDK_VERSION}-0 \
+  google-cloud-sdk-datalab=${CLOUD_SDK_VERSION}-0 \
+  google-cloud-sdk-datastore-emulator=${CLOUD_SDK_VERSION}-0 \
+  google-cloud-sdk-pubsub-emulator=${CLOUD_SDK_VERSION}-0 \
+  google-cloud-sdk-bigtable-emulator=${CLOUD_SDK_VERSION}-0 \
+  google-cloud-sdk-cbt=${CLOUD_SDK_VERSION}-0 \
+  kubectl && \
+  gcloud --version && \
+  docker --version && kubectl version --client
 
 # Install and Configure Docker Tooling
 # ...
@@ -92,6 +98,10 @@ RUN DOCKERIZE_URL=$(curl --location --fail --retry 3 https://api.github.com/repo
   && tar -C /usr/local/bin -xzvf /tmp/dockerize-linux-amd64.tar.gz \
   && rm -rf /tmp/dockerize-linux-amd64.tar.gz
 
+# install codeclimate test reporter
+RUN curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > /usr/local/bin/cc-test-reporter \
+ && chmod +x /usr/local/bin/cc-test-reporter
+
 RUN groupadd --gid 3434 circleci \
   && useradd --uid 3434 --gid circleci --shell /bin/bash --create-home circleci \
   && echo 'circleci ALL=NOPASSWD: ALL' >> /etc/sudoers.d/50-circleci \
@@ -102,7 +112,7 @@ USER circleci
 # Setup NVM Install Environment
 # ...
 ENV NPM_CONFIG_LOGLEVEL info
-ENV NODE_VERSION 10.3.0
+ENV NODE_VERSION 12.12.0
 #ENV NPM_VERSION=5
 
 USER root
@@ -137,5 +147,9 @@ RUN curl https://raw.githubusercontent.com/creationix/nvm/v0.33.11/install.sh | 
 # Set up our PATH correctly so we don't have to long-reference npm, node, &c.
 ENV NODE_PATH $NVM_DIR/v$NODE_VERSION/lib/node_modules
 ENV PATH      $NVM_DIR/versions/node/v$NODE_VERSION/bin:$PATH
+
+RUN curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add - \
+  && echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list \
+  && sudo apt-get update && sudo apt-get install --no-install-recommends yarn
 
 CMD [ "node" ]

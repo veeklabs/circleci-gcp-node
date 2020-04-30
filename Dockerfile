@@ -112,7 +112,7 @@ USER circleci
 # Setup NVM Install Environment
 # ...
 ENV NPM_CONFIG_LOGLEVEL info
-ENV NODE_VERSION 12.12.0
+ENV NODE_VERSION 13.13.0
 #ENV NPM_VERSION=5
 
 USER root
@@ -138,7 +138,7 @@ USER circleci
 ENV NVM_DIR /usr/local/nvm
 
 # Install nvm with node and npm
-RUN curl https://raw.githubusercontent.com/creationix/nvm/v0.33.11/install.sh | bash \
+RUN curl https://raw.githubusercontent.com/creationix/nvm/v0.35.3/install.sh | bash \
     && source $NVM_DIR/nvm.sh \
     && nvm install $NODE_VERSION \
     && nvm alias default $NODE_VERSION \

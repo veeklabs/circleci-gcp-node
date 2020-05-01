@@ -1,4 +1,4 @@
-FROM docker:17.12.0-ce as static-docker-source
+FROM docker:18.09.6 as static-docker-source
 FROM debian:stretch
 
 MAINTAINER EasyMetrics <joshuaw@easymetrics.com>
